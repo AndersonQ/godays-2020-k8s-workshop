@@ -149,7 +149,7 @@ func (r *ReconcilePodHealth) Reconcile(request reconcile.Request) (reconcile.Res
 	instance.Status.Total = len(podList.Items)
 	instance.Status.Ready = ready
 	instance.Status.Unready = unready
-	instance.Status.LastChecked = metav1.Now()
+	instance.Status.LastUpdated = metav1.Now()
 	if err = r.client.Status().Update(ctx, instance); err != nil {
 		return reconcile.Result{}, fmt.Errorf("updating PodHealth Status: %v", err)
 	}

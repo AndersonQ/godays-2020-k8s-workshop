@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -37,6 +38,30 @@ import (
 type PodHealthReconciler struct {
 	client.Client
 	Log logr.Logger
+}
+
+type podStatus struct {
+	namespace    string
+	phaseCounter map[string]int
+}
+
+func newPodStatus(namespace string) *podStatus {
+	return &podStatus{
+		namespace:    namespace,
+		phaseCounter: map[string]int{},
+	}
+}
+
+func (p podStatus) String() string {
+	bs, err := json.Marshal(p.phaseCounter)
+	if err != nil {
+		return fmt.Sprintf(`{"namespace":"%s","error":"%q"}`, p.namespace, err)
+	}
+
+	// TODO: add total pods
+	return fmt.Sprintf(`{"namespace":"%s","phases":%s}`, p.namespace, string(bs))
+	//return fmt.Sprintf("{namespace: %s, ready: %d, unready: %d, total: %d}",
+	//	p.namespace, p.ready, p.unready, p.ready+p.unready)
 }
 
 // +kubebuilder:rbac:groups=training.loodse.io,resources=podhealths,verbs=get;list;watch;create;update;patch;delete
@@ -62,7 +87,7 @@ func (r *PodHealthReconciler) Reconcile(req ctrl.Request) (result ctrl.Result, e
 	}
 	podList := &corev1.PodList{}
 	if err = r.List(ctx, podList,
-		client.InNamespace(podHealth.Namespace),
+		//client.InNamespace(podHealth.Namespace),
 		client.MatchingLabelsSelector{Selector: podSelector}); err != nil {
 		return result, fmt.Errorf("listing pods: %v", err)
 	}
@@ -72,7 +97,13 @@ func (r *PodHealthReconciler) Reconcile(req ctrl.Request) (result ctrl.Result, e
 		ready   int
 		unready int
 	)
+	namespace2pods := map[string]*podStatus{}
+
 	for _, pod := range podList.Items {
+		ps := getPodStatus(namespace2pods, pod)
+		phase := getPhase(pod, ps)
+		ps.phaseCounter[phase]++
+
 		if isReady(&pod) {
 			ready++
 			continue
@@ -80,11 +111,25 @@ func (r *PodHealthReconciler) Reconcile(req ctrl.Request) (result ctrl.Result, e
 		unready++
 	}
 
+	report := map[string]map[string]int{}
+	for namespace, ps := range namespace2pods {
+		report[namespace] = ps.phaseCounter
+	}
+	reportBs, err := json.Marshal(report)
+	if err != nil {
+		podHealth.Status.ByNamespace = fmt.Sprintf(`"error":%q`, err)
+	} else {
+		podHealth.Status.ByNamespace = string(reportBs)
+	}
+
+	log.Info(fmt.Sprintf("%#v", namespace2pods))
+	log.Info(fmt.Sprintf("podHealth.Status.ByNamespace: %s", podHealth.Status.ByNamespace))
+
 	// Update PodHealth Status
 	podHealth.Status.Total = len(podList.Items)
 	podHealth.Status.Ready = ready
 	podHealth.Status.Unready = unready
-	podHealth.Status.LastChecked = metav1.Now()
+	podHealth.Status.LastUpdated = metav1.Now()
 	if err = r.Status().Update(ctx, podHealth); err != nil {
 		return result, fmt.Errorf("updating PodHealth Status: %v", err)
 	}
@@ -92,8 +137,25 @@ func (r *PodHealthReconciler) Reconcile(req ctrl.Request) (result ctrl.Result, e
 	return
 }
 
+func getPhase(pod corev1.Pod, ps *podStatus) string {
+	phase := string(pod.Status.Phase)
+	if _, ok := ps.phaseCounter[phase]; !ok {
+		ps.phaseCounter[phase] = 0
+	}
+	return phase
+}
+
+func getPodStatus(namespace2pods map[string]*podStatus, pod corev1.Pod) *podStatus {
+	ps, ok := namespace2pods[pod.Namespace]
+	if !ok {
+		ps = newPodStatus(pod.Namespace)
+		namespace2pods[pod.Namespace] = ps
+	}
+	return ps
+}
+
 func isReady(pod *corev1.Pod) bool {
-	for _, condition := range pod.Status.Conditions {
+	for _, condition := range pod.Status.Conditions { // pod.Status: report broken link in the docs
 		if condition.Type == corev1.PodReady &&
 			condition.Status == corev1.ConditionTrue {
 			return true
@@ -109,7 +171,7 @@ func (r *PodHealthReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 			// List all PodHealth objects in the same Namespace
 			podHealthList := &trainingv1alpha1.PodHealthList{}
-			if err := mgr.GetClient().List(ctx, podHealthList, client.InNamespace(obj.Meta.GetNamespace())); err != nil {
+			if err := mgr.GetClient().List(ctx, podHealthList); err != nil {
 				utilruntime.HandleError(err)
 				return requests
 			}

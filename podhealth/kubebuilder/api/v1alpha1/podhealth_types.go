@@ -30,7 +30,8 @@ type PodHealthStatus struct {
 	Ready       int         `json:"ready,omitempty"`
 	Unready     int         `json:"unready,omitempty"`
 	Total       int         `json:"total,omitempty"`
-	LastChecked metav1.Time `json:"lastChecked,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	ByNamespace string      `json:"byNamespace,omitempty"`
 }
 
 // PodHealth is the Schema for the podhealths API
@@ -40,6 +41,8 @@ type PodHealthStatus struct {
 // +kubebuilder:printcolumn:name="Unready",type="integer",JSONPath=".status.unready"
 // +kubebuilder:printcolumn:name="Total",type="integer",JSONPath=".status.total"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="ByNamespace",type="string",JSONPath=".status.byNamespace"
+// +kubebuilder:printcolumn:name="LastUpdated",type="date",JSONPath=".status.lastUpdated"
 // +kubebuilder:resource:shortName=ph
 type PodHealth struct {
 	metav1.TypeMeta   `json:",inline"`

@@ -17,7 +17,6 @@ package main
 
 import (
 	"flag"
-	"os"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -62,7 +61,8 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		panic("unable to start manager: " + err.Error())
+		//os.Exit(1)
 	}
 
 	if err = (&controllers.ShutterReconciler{
@@ -71,7 +71,8 @@ func main() {
 		SmartHomeClient: smartHomeClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Shutter")
-		os.Exit(1)
+		panic("unable to create controller Shutter: " + err.Error())
+		//os.Exit(1)
 	}
 	if err = (&controllers.LightReconciler{
 		Client:          mgr.GetClient(),
@@ -79,7 +80,8 @@ func main() {
 		SmartHomeClient: smartHomeClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Light")
-		os.Exit(1)
+		panic("unable to create controller Light: " + err.Error())
+		//os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 
@@ -88,6 +90,7 @@ func main() {
 	setupLog.Info("starting manager")
 	if err := mgr.Start(u.CloseCh()); err != nil {
 		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		panic("problem running manager: " + err.Error())
+		//os.Exit(1)
 	}
 }
