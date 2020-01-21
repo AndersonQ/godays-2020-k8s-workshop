@@ -73,6 +73,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Shutter")
 		os.Exit(1)
 	}
+	if err = (&controllers.LightReconciler{
+		Client:          mgr.GetClient(),
+		Log:             ctrl.Log.WithName("controllers").WithName("Light"),
+		SmartHomeClient: smartHomeClient,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Light")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	go u.Run()

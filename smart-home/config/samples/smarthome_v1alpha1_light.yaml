@@ -1,0 +1,13 @@
+apiVersion: smarthome.loodse.io/v1alpha1
+kind: Light
+metadata:
+  name: living-room
+spec:
+  "on": false
+---
+apiVersion: smarthome.loodse.io/v1alpha1
+kind: Light
+metadata:
+  name: bedroom
+spec:
+  "on": true
